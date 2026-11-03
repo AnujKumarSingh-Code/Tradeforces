@@ -104,7 +104,11 @@ The coach is two calls per player per session (`internal/coach`):
 2. **Narrative** (`claude-sonnet-5-5`): the rubric and teaching style sit in a
    cached system prefix; the tags, metrics and episodes go in the user turn.
 
-Override models with `COACH_TAG_MODEL` and `COACH_MODEL`. The review screen
+Override models with `COACH_TAG_MODEL` and `COACH_MODEL`. To exercise the
+real calls without playing a round, `go run ./cmd/coachtest` runs a headless
+session with a scripted trader who commits most of the taxonomy, then prints
+the tags, the narrative and the estimated cost (it exits non-zero if a key is
+set and the Claude path fails). The review screen
 shows the estimated cost of each review (about $0.01-0.02). On the $1,000
 credit plan this is roughly 50,000 player-sessions of coaching. Set a spend
 limit in the Console before exposing it to the public.
