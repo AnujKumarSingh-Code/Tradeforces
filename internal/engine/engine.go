@@ -88,6 +88,7 @@ type Thesis struct {
 type Account struct {
 	Owner      string
 	Name       string
+	Tier       string // maker, noise, medium, pro, human
 	Human      bool
 	Cash       float64
 	Pos        int64
@@ -123,6 +124,45 @@ type StopOrder struct {
 	Trigger int64     `json:"trigger"`
 	Qty     int64     `json:"qty"`
 	Time    int64     `json:"t"`
+}
+
+// FlowBucket is taker volume by tier over one 10-second window.
+type FlowBucket struct {
+	Time   int64 `json:"t"`
+	Maker  int64 `json:"maker"` // makers are passive: volume where a maker was the resting side
+	Noise  int64 `json:"noise"`
+	Medium int64 `json:"medium"`
+	Pro    int64 `json:"pro"`
+	Human  int64 `json:"human"`
+}
+
+func (f *FlowBucket) add(tier string, qty int64) {
+	switch tier {
+	case "maker":
+		f.Maker += qty
+	case "noise":
+		f.Noise += qty
+	case "medium":
+		f.Medium += qty
+	case "pro":
+		f.Pro += qty
+	case "human":
+		f.Human += qty
+	}
+}
+
+// Flow returns up to n closed buckets ending `delay` seconds before now.
+func (e *Engine) Flow(n int, delay int64) []FlowBucket {
+	cut := e.Now - delay
+	end := len(e.FlowHist)
+	for end > 0 && e.FlowHist[end-1].Time > cut {
+		end--
+	}
+	start := end - n
+	if start < 0 {
+		start = 0
+	}
+	return e.FlowHist[start:end]
 }
 
 // LogEntry is one append-only event.
@@ -173,6 +213,12 @@ type Engine struct {
 	lastNews     *market.Event
 	lastNewsTime int64
 	Published    []market.Event
+
+	// Flow by tier: taker volume per tier in the current 10-second bucket,
+	// and the history of closed buckets. Served to clients with a delay so
+	// it teaches reading the tape without giving away informed flow live.
+	flowCur  FlowBucket
+	FlowHist []FlowBucket
 
 	// Fills produced during the most recent Step or human action,
 	// restricted to humans. The server drains this for notifications.
@@ -227,7 +273,7 @@ func New(cfg Config) *Engine {
 
 func (e *Engine) addAgent(a agents.Agent) {
 	e.agentList = append(e.agentList, a)
-	e.accounts[a.ID()] = &Account{Owner: a.ID(), Name: a.ID()}
+	e.accounts[a.ID()] = &Account{Owner: a.ID(), Name: a.ID(), Tier: a.Tier()}
 }
 
 func (e *Engine) append(kind string, data any) {
@@ -292,7 +338,7 @@ func (e *Engine) Join(owner, name string) *Account {
 	if a, ok := e.accounts[owner]; ok {
 		return a
 	}
-	a := &Account{Owner: owner, Name: name, Human: true, Cash: e.Cfg.StartCash, StartCash: e.Cfg.StartCash, Limit: 1000, PeakEquity: e.Cfg.StartCash}
+	a := &Account{Owner: owner, Name: name, Tier: "human", Human: true, Cash: e.Cfg.StartCash, StartCash: e.Cfg.StartCash, Limit: 1000, PeakEquity: e.Cfg.StartCash}
 	e.accounts[owner] = a
 	e.humans = append(e.humans, owner)
 	e.append("join", map[string]any{"owner": owner, "name": name})
@@ -542,6 +588,12 @@ func (e *Engine) place(o *book.Order) []book.Fill {
 func (e *Engine) applyFill(f book.Fill, fair float64, mid, spread int64) {
 	taker := e.accounts[f.Taker]
 	maker := e.accounts[f.Maker]
+	if taker != nil {
+		e.flowCur.add(taker.Tier, f.Qty)
+	}
+	if maker != nil && maker.Tier == "maker" {
+		e.flowCur.add("maker", f.Qty)
+	}
 	if maker != nil {
 		if m := e.open[f.Maker]; m != nil {
 			if o, ok := e.Book.Get(f.MakerID); !ok || o.Remaining == 0 {
@@ -691,6 +743,9 @@ func (e *Engine) step() {
 	e.trackProtection()
 
 	if e.Now%10 == 0 {
+		e.flowCur.Time = e.Now
+		e.FlowHist = append(e.FlowHist, e.flowCur)
+		e.flowCur = FlowBucket{}
 		mark := e.Book.Mid()
 		for _, h := range e.humans {
 			a := e.accounts[h]

@@ -173,6 +173,10 @@ func Score(a *engine.Account, closePx int64, news []NewsAt) Result {
 	if len(eps) > 0 && r.AvgEntryGap < -0.1 {
 		p += 8
 	}
+	// A session with a detected pattern never reads as perfect.
+	if len(r.Mistakes) > 0 && p > 92 {
+		p = 92
+	}
 	if len(eps) == 0 {
 		p = 50
 	}

@@ -641,30 +641,32 @@ type lbRow struct {
 }
 
 type publicFrame struct {
-	Session   string           `json:"session"`
-	Phase     string           `json:"phase"`
-	PhaseLeft float64          `json:"phase_left"`
-	Now       int64            `json:"now"`
-	Mid       int64            `json:"mid"`
-	Last      int64            `json:"last"`
-	Bid       int64            `json:"bid"`
-	Ask       int64            `json:"ask"`
-	BidQty    int64            `json:"bid_qty"`
-	AskQty    int64            `json:"ask_qty"`
-	Spread    int64            `json:"spread"`
-	Bids      []book.LevelView `json:"bids"`
-	Asks      []book.LevelView `json:"asks"`
-	Candle    market.Candle    `json:"candle"`
-	NCandles  int              `json:"ncandles"`
-	LastDone  *market.Candle   `json:"last_candle,omitempty"`
-	Tape      []engine.Trade   `json:"tape"`
-	Vol       float64          `json:"vol"`
-	Volume    int64            `json:"volume"`
-	News      []market.Event   `json:"news"`
-	Board     []lbRow          `json:"board"`
-	Players   int              `json:"players"`
-	Closed    bool             `json:"closed"`
-	ClosePx   int64            `json:"close_px"`
+	Session   string              `json:"session"`
+	Phase     string              `json:"phase"`
+	PhaseLeft float64             `json:"phase_left"`
+	Now       int64               `json:"now"`
+	Mid       int64               `json:"mid"`
+	Last      int64               `json:"last"`
+	Bid       int64               `json:"bid"`
+	Ask       int64               `json:"ask"`
+	BidQty    int64               `json:"bid_qty"`
+	AskQty    int64               `json:"ask_qty"`
+	Spread    int64               `json:"spread"`
+	Bids      []book.LevelView    `json:"bids"`
+	Asks      []book.LevelView    `json:"asks"`
+	Candle    market.Candle       `json:"candle"`
+	NCandles  int                 `json:"ncandles"`
+	LastDone  *market.Candle      `json:"last_candle,omitempty"`
+	Tape      []engine.Trade      `json:"tape"`
+	Vol       float64             `json:"vol"`
+	Volume    int64               `json:"volume"`
+	News      []market.Event      `json:"news"`
+	Board     []lbRow             `json:"board"`
+	Players   int                 `json:"players"`
+	Closed    bool                `json:"closed"`
+	ClosePx   int64               `json:"close_px"`
+	Flow      []engine.FlowBucket `json:"flow"` // delayed two simulated minutes
+	Speed     int                 `json:"speed"`
 }
 
 func (s *Server) publicFrame(eng *engine.Engine, phase string, end time.Time, id string) publicFrame {
@@ -676,6 +678,7 @@ func (s *Server) publicFrame(eng *engine.Engine, phase string, end time.Time, id
 		Mid: eng.Book.Mid(), Last: eng.Book.LastPrice, Bid: bb, Ask: ba, BidQty: bq, AskQty: aq, Spread: eng.Book.Spread(),
 		Bids: bids, Asks: asks, Candle: eng.Current(), NCandles: len(eng.Candles), Tape: eng.Tape(30), Vol: eng.Vol(),
 		Volume: eng.Book.Volume, News: eng.Published, Closed: eng.Closed, ClosePx: eng.ClosePrice,
+		Flow: eng.Flow(40, 120), Speed: s.cfg.Speed,
 	}
 	if n := len(eng.Candles); n > 0 {
 		c := eng.Candles[n-1]
@@ -708,6 +711,95 @@ type privateFrame struct {
 	Open       []openOrder        `json:"open"`
 	Stops      []engine.StopOrder `json:"stops"`
 	Theses     int                `json:"theses"`
+	Live       *liveCoach         `json:"live,omitempty"`
+}
+
+// liveCoach is the rule-based nudge shown during the session. It costs
+// nothing: the same scoring code that runs at the close, run on the account
+// as it stands now.
+type liveCoach struct {
+	Process  float64 `json:"process"`
+	Score    float64 `json:"score"`
+	Hint     string  `json:"hint"`
+	Tone     string  `json:"tone"` // good, warn, bad, info
+	Patterns int     `json:"patterns"`
+}
+
+func (s *Server) liveCoachFor(eng *engine.Engine, a *engine.Account, mark int64) *liveCoach {
+	var news []scoring.NewsAt
+	for _, ev := range eng.Published {
+		news = append(news, scoring.NewsAt{At: ev.At, Headline: ev.Headline})
+	}
+	res := scoring.Score(a, mark, news)
+	lc := &liveCoach{Process: res.ProcessScore, Score: res.Score, Patterns: len(res.Mistakes), Tone: "info"}
+	realSec := func(sim int64) int64 { return sim / int64(s.cfg.Speed) }
+	// Next scheduled event.
+	var next *market.Event
+	for i := range eng.Events {
+		ev := &eng.Events[i]
+		if ev.Scheduled && !ev.Fired {
+			next = ev
+			break
+		}
+	}
+	unprot := int64(0)
+	if a.Pos != 0 {
+		protected := false
+		for _, st := range eng.Stops(a.Owner) {
+			if (a.Pos > 0 && st.Side == book.Sell) || (a.Pos < 0 && st.Side == book.Buy) {
+				protected = true
+			}
+		}
+		if !protected {
+			unprot = a.MaxUnprotected
+		}
+	}
+	switch {
+	case a.Pos != 0 && abs64(a.Pos) > a.Limit:
+		lc.Hint = fmt.Sprintf("You are %d shares over the %d limit you set yourself. Size is the one variable you control.", abs64(a.Pos)-a.Limit, a.Limit)
+		lc.Tone = "bad"
+	case a.Pos != 0 && next != nil && realSec(next.At-eng.Now) <= 45 && unprot > 0:
+		lc.Hint = fmt.Sprintf("%s in %ds and you are unprotected. Makers pull quotes on headlines; the first prints are the worst of the day.", next.Label, realSec(next.At-eng.Now))
+		lc.Tone = "bad"
+	case a.Pos != 0 && unprot >= 60*int64(s.cfg.Speed):
+		lc.Hint = "Position open for over a minute with no stop. The log is counting every second of it."
+		lc.Tone = "warn"
+	case len(res.Mistakes) > 0 && res.Mistakes[0].Tag == "revenge":
+		lc.Hint = "That re-entry came fast and big after a loss. Step back for a minute; the tape will still be here."
+		lc.Tone = "bad"
+	case len(res.Mistakes) > 0 && res.Mistakes[0].Tag == "paying_spread":
+		lc.Hint = "You keep crossing a wide spread with market orders. A limit one tick inside the touch usually fills in seconds here."
+		lc.Tone = "warn"
+	case len(res.Mistakes) > 0 && res.Mistakes[0].Tag == "chasing":
+		lc.Hint = "Your entries are chasing extended prices. Wait for the pullback; the crowd overshoots, then the pros fade it."
+		lc.Tone = "warn"
+	case len(res.Mistakes) > 0:
+		lc.Hint = res.Mistakes[0].Detail
+		lc.Tone = "warn"
+	case a.Pos != 0 && next != nil && realSec(next.At-eng.Now) <= 60:
+		lc.Hint = fmt.Sprintf("%s drops in %ds. Pros already know; watch for size sweeping the book.", next.Label, realSec(next.At-eng.Now))
+		lc.Tone = "info"
+	case res.Episodes > 0 && res.AvgEntryGap < -0.2:
+		lc.Hint = fmt.Sprintf("Entries are averaging %.2f%% inside fair value: you are fading the crowd, not joining it. Keep that up.", res.AvgEntryGap)
+		lc.Tone = "good"
+	case res.Episodes > 0 && res.Wins > res.Losses:
+		lc.Hint = fmt.Sprintf("%d of %d round trips green with a %.2f%% max drawdown. Protect it: tighten stops rather than add size.", res.Wins, res.Episodes, res.MaxDrawdown)
+		lc.Tone = "good"
+	case a.Pos != 0:
+		lc.Hint = "Stop resting, size inside your limit. Now read the tape: who is moving it, the crowd or the pros?"
+		lc.Tone = "good"
+	default:
+		lc.Hint = "Flat. Pick a thesis before the next entry; calibration is scored."
+		lc.Tone = "info"
+	}
+	return lc
+}
+
+func abs64(v int64) int64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 type openOrder struct {
@@ -738,6 +830,9 @@ func (s *Server) privateFrame(eng *engine.Engine, owner string) *privateFrame {
 		pf.Open = append(pf.Open, openOrder{ID: o.ID, Side: o.Side.String(), Price: o.Price, Remaining: o.Remaining, Age: o.Age})
 	}
 	pf.Stops = eng.Stops(owner)
+	if !eng.Closed {
+		pf.Live = s.liveCoachFor(eng, a, mark)
+	}
 	return pf
 }
 

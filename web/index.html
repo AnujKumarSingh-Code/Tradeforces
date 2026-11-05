@@ -4,175 +4,155 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tradeforces</title>
-<meta name="description" content="An order-flow trading game. Price emerges from a real limit order book driven by bot agents; your edge is reading the tape.">
+<meta name="description" content="Trade. Compete. Win. An order-flow trading game where price emerges from a live order book driven by bot agents.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="style.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0f17'/%3E%3Cpath d='M6 22l6-8 5 5 9-11' stroke='%2322d3ee' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M4 26L14 12l6 6L28 6' stroke='%2322d3ee' stroke-width='4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M20 6h8v8' stroke='%2334d399' stroke-width='4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 </head>
 <body>
 
-<header class="topbar">
-  <div class="brand">
-    <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#0b0f17"/><path d="M6 22l6-8 5 5 9-11" stroke="#22d3ee" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <span>Trade<em>forces</em></span>
+<!-- ===== Hero / lobby ===== -->
+<section class="hero" id="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-inner">
+    <div class="hero-copy">
+      <div class="logo big"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 26L14 12l6 6L28 6" stroke="#22d3ee" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 6h8v8" stroke="#34d399" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tradeforces</span></div>
+      <h1>Trade. <em>Compete.</em> Win.</h1>
+      <p>Price here is not scripted. It comes out of a live order book moved by market makers, a crowd of noise traders, trend bots with stops at round numbers and a handful of pros who see the news before you do. Your edge is reading which of them is moving the tape.</p>
+      <form id="joinForm" class="join">
+        <input id="name" placeholder="Your name" maxlength="24" autocomplete="off">
+        <button class="primary" type="submit">Enter the lobby</button>
+      </form>
+      <div class="hero-meta">
+        <span class="pill" id="heroPhase"><span class="dot"></span><span id="heroPhaseText">connecting</span></span>
+        <span class="mono" id="heroLeft"></span>
+        <button class="link" id="spectate" type="button">Watch the tape without joining</button>
+      </div>
+      <div class="fine">Fictional companies. No real money. The coach critiques process and never recommends positions.</div>
+    </div>
+    <div class="hero-stage" aria-hidden="true">
+      <div class="agent-card mm"><b>Market Makers</b><span>Provide liquidity</span><i></i></div>
+      <div class="agent-card noise"><b>Noise Traders</b><span>React to news</span><i></i></div>
+      <div class="agent-card med"><b>Medium Traders</b><span>Follow trends</span><i></i></div>
+      <div class="agent-card pro"><b>Pro Agents</b><span>Find alpha</span><i></i></div>
+      <div class="stage-core">
+        <svg class="stage-chart" viewBox="0 0 320 140" preserveAspectRatio="none"><defs><linearGradient id="hg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#22d3ee" stop-opacity=".45"/><stop offset="1" stop-color="#22d3ee" stop-opacity="0"/></linearGradient></defs><path id="heroArea" fill="url(#hg)"/><path id="heroLine" fill="none" stroke="#22d3ee" stroke-width="2.5" stroke-linejoin="round"/></svg>
+        <div class="stage-book mono" id="heroBook"></div>
+        <div class="stage-score"><span>Your score</span><b class="mono">8,420</b><small class="up">▲ +12.5%</small></div>
+      </div>
+      <div class="stage-glow"></div>
+    </div>
   </div>
-  <div class="instrument">
-    <div class="ticker" id="ticker">----</div>
-    <div class="company"><span id="company">Connecting to the lobby</span><span class="sector" id="sector"></span></div>
-  </div>
-  <div class="quote">
-    <div class="last mono" id="last">—</div>
-    <div class="chg mono" id="chg">—</div>
-  </div>
-  <div class="phase">
-    <div class="pill" id="phasePill"><span class="dot"></span><span id="phaseText">lobby</span></div>
-    <div class="clock mono"><span id="simClock">09:30:00</span><span class="sep">·</span><span id="phaseLeft">--:--</span></div>
-  </div>
-  <div class="pnl">
-    <div class="label">Equity</div>
-    <div class="mono" id="equity">—</div>
-    <div class="mono small" id="pnlDay">—</div>
-  </div>
-  <div class="who" id="who">
-    <button class="ghost" id="btnJoin">Join</button>
-  </div>
-</header>
+</section>
 
+<!-- ===== Terminal ===== -->
+<div class="app" id="app" hidden>
+<header class="topbar">
+  <div class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 26L14 12l6 6L28 6" stroke="#22d3ee" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 6h8v8" stroke="#34d399" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tradeforces</span></div>
+  <div class="sep"></div>
+  <button class="instrument" id="instrumentBtn"><b id="ticker">----</b><span class="caret">▾</span><span class="company" id="company"></span></button>
+  <div class="quote"><b class="mono" id="last">—</b><span class="mono chg" id="chg">—</span></div>
+  <div class="sep"></div>
+  <div class="countdown"><b class="mono" id="phaseLeft">--:--</b><span id="phaseLabel">to open</span></div>
+  <div class="sep"></div>
+  <div class="speed mono" id="speed">20×</div>
+  <div class="cash"><span>Cash</span><b class="mono" id="cash">—</b></div>
+  <div class="limit"><span>Position Limit</span><b class="mono" id="limitHdr">—</b></div>
+  <div class="phase-pill pill" id="phasePill"><span class="dot"></span><span id="phaseText">lobby</span></div>
+  <button class="icon" id="gear" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="none" stroke="currentColor" stroke-width="1.8" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></button>
+</header>
 <div class="banner" id="banner" hidden></div>
 
 <main class="grid">
   <section class="panel chart-panel">
-    <div class="panel-head">
-      <div class="tabs" id="chartTabs">
-        <button class="tab active" data-view="intraday">Session</button>
-        <button class="tab" data-view="history">30-day context</button>
-      </div>
-      <div class="chart-stats mono">
-        <span>O <b id="sO">—</b></span><span>H <b id="sH">—</b></span><span>L <b id="sL">—</b></span><span>C <b id="sC">—</b></span>
-        <span>Vol <b id="sV">—</b></span><span>Day <b id="sVol">—</b></span>
-      </div>
+    <div class="toolbar">
+      <div class="tfs" id="tfs"><button data-tf="300" class="active">5m</button><button data-tf="900">15m</button><button data-tf="1800">30m</button><button data-tf="3600">1h</button><button data-tf="day">1D</button></div>
+      <div class="ohlc mono"><span id="ohlcTitle">—</span><span>O <b id="sO">—</b></span><span>H <b id="sH">—</b></span><span>L <b id="sL">—</b></span><span>C <b id="sC">—</b></span><span class="chgsm" id="sChg"></span></div>
     </div>
-    <div class="chart-wrap"><div id="chart"></div><div id="chartHist" hidden></div></div>
+    <div class="chart-wrap"><div id="chart"></div></div>
   </section>
 
   <section class="panel book-panel">
-    <div class="panel-head"><h3>Order book</h3><span class="mono muted" id="spread">spread —</span></div>
-    <div class="ladder" id="ladder">
-      <div class="asks" id="asks"></div>
-      <div class="mid-row mono" id="midRow">—</div>
-      <div class="bids" id="bids"></div>
-    </div>
+    <div class="panel-head"><h3>Order Book</h3><span class="live" id="bookLive"><i></i>Live</span></div>
+    <div class="book-cols mono"><span>Bid</span><span>Price</span><span>Ask</span></div>
+    <div class="book mono" id="book"></div>
+    <div class="spread-wrap"><div class="spread-bar"><i id="spreadBid"></i><i id="spreadAsk"></i></div><div class="mono small"><span class="muted">Spread</span> <b id="spread">—</b></div></div>
   </section>
 
   <section class="panel ticket-panel">
-    <div class="panel-head"><h3>Order ticket</h3><span class="muted small" id="ticketHint">Market closed</span></div>
+    <div class="ticket-tabs" id="ticketTabs"><button data-type="limit" class="active">Limit</button><button data-type="market">Market</button><button data-type="stop">Stop</button></div>
     <div class="ticket">
-      <div class="side-toggle">
-        <button class="side buy active" data-side="buy">Buy</button>
-        <button class="side sell" data-side="sell">Sell</button>
-      </div>
-      <div class="row">
-        <label>Type
-          <div class="seg" id="typeSeg"><button class="active" data-type="limit">Limit</button><button data-type="market">Market</button></div>
-        </label>
-        <label>Price <input class="mono" id="price" type="number" step="0.01" placeholder="—"></label>
-        <label>Qty <input class="mono" id="qty" type="number" step="1" value="100"></label>
-      </div>
-      <div class="quick"><button data-q="50">50</button><button data-q="100">100</button><button data-q="250">250</button><button data-q="500">500</button><button data-q="limit">limit</button></div>
-      <div class="thesis">
-        <div class="label">Pre-trade thesis <span class="muted">(scored for calibration)</span></div>
+      <label class="field"><span>Quantity</span><div class="stepper"><button type="button" data-step="qty" data-d="-1">−</button><input class="mono" id="qty" type="number" step="1" value="100"><button type="button" data-step="qty" data-d="1">+</button></div></label>
+      <label class="field" id="priceField"><span id="priceLabel">Price</span><div class="stepper"><button type="button" data-step="price" data-d="-1">−</button><input class="mono" id="price" type="number" step="0.01" placeholder="—"><button type="button" data-step="price" data-d="1">+</button></div></label>
+      <div class="buysell"><button class="buy" id="btnBuy">Buy</button><button class="sell" id="btnSell">Sell</button></div>
+      <details class="thesis" id="thesisBox"><summary>Thesis &amp; confidence <span class="muted">scored</span></summary>
         <div class="chips" id="thesisChips">
-          <button data-t="Fade the panic">Fade the panic</button>
-          <button data-t="Ride the trend">Ride the trend</button>
-          <button data-t="Revert to range">Revert to range</button>
-          <button data-t="Pre-news positioning">Pre-news positioning</button>
-          <button data-t="Post-news drift">Post-news drift</button>
-          <button data-t="Reading the whale">Reading the whale</button>
+          <button data-t="Fade the panic">Fade the panic</button><button data-t="Ride the trend">Ride the trend</button><button data-t="Revert to range">Revert to range</button><button data-t="Pre-news positioning">Pre-news</button><button data-t="Post-news drift">Post-news drift</button><button data-t="Reading the whale">Whale</button>
         </div>
         <div class="conf"><span>Confidence</span><input type="range" id="conf" min="50" max="95" step="5" value="65"><b class="mono" id="confVal">65%</b></div>
-      </div>
-      <button class="submit buy" id="submit">Buy 100 @ limit</button>
-      <div class="row stops">
-        <label>Stop <input class="mono" id="stopPx" type="number" step="0.01" placeholder="trigger"></label>
-        <label>Qty <input class="mono" id="stopQty" type="number" step="1" placeholder="pos"></label>
-        <button class="ghost" id="placeStop">Place stop</button>
-        <button class="ghost danger" id="flatten">Flatten</button>
-      </div>
+      </details>
+      <div class="ticket-foot"><span class="muted small" id="ticketHint">Market closed</span><button class="ghost danger small" id="flatten">Flatten</button></div>
     </div>
   </section>
 
-  <section class="panel pos-panel">
-    <div class="panel-head"><h3>Position</h3><span class="muted small mono" id="limitText">limit —</span></div>
-    <div class="kv mono" id="posKV"></div>
-    <div class="sub-head">Working orders</div>
-    <div class="orders" id="orders"><div class="empty">No resting orders</div></div>
-    <div class="sub-head">Stops</div>
-    <div class="orders" id="stops"><div class="empty">No stops. Positions without one are scored.</div></div>
+  <section class="panel agents-panel">
+    <div class="panel-head"><h3>Agents</h3><span class="muted small">flow · 2 min delay</span></div>
+    <div class="agents" id="agents"></div>
   </section>
 
-  <section class="panel news-panel">
-    <div class="panel-head"><h3>News &amp; calendar</h3><span class="muted small">pros see it a few seconds early</span></div>
-    <div class="calendar" id="calendar"></div>
-    <div class="news" id="news"><div class="empty">No headlines yet</div></div>
+  <section class="strip" id="strip"><span class="strip-title"><i></i>Recent Trades</span><div class="strip-items mono" id="stripItems"></div></section>
+
+  <section class="panel bottom-panel">
+    <div class="tabs" id="bottomTabs"><button class="active" data-view="positions">Positions</button><button data-view="orders">Orders</button><button data-view="news">News</button><button data-view="board">Leaderboard</button><button data-view="fills">My fills</button></div>
+    <div class="view" id="v-positions"><div class="kv mono" id="posKV"></div></div>
+    <div class="view" id="v-orders" hidden><div class="sub-head">Working orders</div><div class="orders" id="orders"></div><div class="sub-head">Stops</div><div class="orders" id="stops"></div></div>
+    <div class="view news-view" id="v-news" hidden><div class="calendar" id="calendar"></div><div class="news" id="news"></div></div>
+    <div class="view" id="v-board" hidden><div class="board" id="board"></div></div>
+    <div class="view" id="v-fills" hidden><div class="tape mono" id="myFills"></div></div>
   </section>
 
-  <section class="panel tape-panel">
-    <div class="panel-head">
-      <div class="tabs" id="tapeTabs"><button class="tab active" data-view="tape">Tape</button><button class="tab" data-view="board">Leaderboard</button><button class="tab" data-view="fills">My fills</button></div>
-    </div>
-    <div class="tape mono" id="tape"></div>
-    <div class="board" id="board" hidden></div>
-    <div class="tape mono" id="myFills" hidden></div>
+  <section class="panel coach-card" id="coachCard">
+    <div class="coach-avatar"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#0f1a2c" stroke="#22d3ee" stroke-width="1.5"/><path d="M14 36c2-7 18-7 20 0" fill="#22d3ee" opacity=".35"/><circle cx="24" cy="20" r="7" fill="#22d3ee" opacity=".9"/><path d="M17 18c2-6 12-6 14 0" fill="#0f1a2c"/></svg></div>
+    <div class="coach-body"><div class="coach-title">Coach <span class="muted small" id="coachTag">rules · live</span></div><div class="coach-text" id="coachText">Join a round and the coach watches your process in real time.</div></div>
+    <div class="ring" id="procRing"><svg viewBox="0 0 72 72"><circle class="track" cx="36" cy="36" r="30"/><circle class="arc" id="procArc" cx="36" cy="36" r="30"/></svg><div class="ring-val"><b class="mono" id="procVal">—</b></div><span class="ring-label">Process<br>Score</span></div>
   </section>
 </main>
-
-<!-- Join -->
-<div class="modal" id="joinModal">
-  <div class="card">
-    <div class="eyebrow">Tradeforces · closed alpha</div>
-    <h1>Price is not scripted.</h1>
-    <p>It emerges from a live limit order book driven by market makers, 120 noise traders, 30 trend and stop-loss bots and four informed pros who see news seconds before you do. Your edge is reading which flow is moving the tape.</p>
-    <form id="joinForm">
-      <input id="name" placeholder="Your name" maxlength="24" autocomplete="off" autofocus>
-      <button class="primary" type="submit">Enter the lobby</button>
-    </form>
-    <div class="fine">Fictional companies. No real money. The coach critiques process and never recommends positions.</div>
-  </div>
 </div>
 
-<!-- Pre-market -->
+<!-- ===== Settings popover ===== -->
+<div class="popover" id="settings" hidden>
+  <div class="pop-row"><span class="label">Player</span><form id="renameForm" class="inline"><input id="rename" maxlength="24"><button class="ghost small" type="submit">Rename</button></form></div>
+  <div class="pop-row"><span class="label">Session</span><span class="mono small" id="setSession">—</span></div>
+  <div class="pop-row"><span class="label">Coach</span><span class="small" id="setCoach">—</span></div>
+  <div class="pop-row"><button class="ghost small" id="openBrief">Company brief &amp; calendar</button><a class="ghost small" id="replayLinkSet" href="#" download>Replay log</a></div>
+</div>
+
+<!-- ===== Pre-market brief ===== -->
 <div class="modal soft" id="preModal" hidden>
   <div class="card wide">
-    <div class="eyebrow">Pre-market · <span id="preLeft">60s</span></div>
+    <div class="eyebrow"><span id="preEyebrow">Pre-market</span> · <span id="preLeft">60s</span></div>
     <h2><span id="preTicker"></span> <span class="muted" id="preCompany"></span></h2>
     <p id="preBrief"></p>
     <div class="pre-grid">
-      <div>
-        <div class="label">Economic calendar</div>
-        <div class="calendar" id="preCalendar"></div>
-      </div>
+      <div><div class="label">Economic calendar</div><div class="calendar" id="preCalendar"></div></div>
       <div>
         <div class="label">Your risk budget</div>
-        <p class="small muted">Starting cash <b class="mono" id="preCash">$100,000</b>. Declare your position limit now; the score penalises positions above it and you cannot change it once the open prints.</p>
+        <p class="small muted">Starting cash <b class="mono" id="preCash">$100,000</b>. Declare your position limit now; the score penalises positions above it and it locks at the open.</p>
         <div class="conf"><span>Position limit</span><input type="range" id="limitRange" min="100" max="5000" step="100" value="1000"><b class="mono" id="limitVal">1,000 sh</b></div>
         <div class="sparkline-wrap"><div class="label">Prior 30 days</div><canvas id="spark" width="420" height="80"></canvas></div>
       </div>
     </div>
-    <div class="actions"><button class="primary" id="preReady">Lock it in</button><button class="ghost" id="preSkip">Watch the tape</button></div>
+    <div class="actions"><button class="primary" id="preReady">Lock it in</button><button class="ghost" id="preSkip">Close</button></div>
   </div>
 </div>
 
-<!-- Results -->
+<!-- ===== Results ===== -->
 <div class="modal soft" id="resultModal" hidden>
   <div class="card wide results">
     <div class="results-head">
-      <div>
-        <div class="eyebrow">Session review · <span id="resSession"></span></div>
-        <h2 id="resTitle">Closed</h2>
-        <div class="muted small" id="resSub"></div>
-      </div>
-      <div class="score-ring" id="scoreRing"><svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="52"/><circle class="arc" id="scoreArc" cx="60" cy="60" r="52"/></svg><div class="score-val"><b class="mono" id="scoreVal">—</b><span>score</span></div></div>
+      <div><div class="eyebrow">Session review · <span id="resSession"></span></div><h2 id="resTitle">Closed</h2><div class="muted small" id="resSub"></div></div>
+      <div class="score-ring"><svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="52"/><circle class="arc" id="scoreArc" cx="60" cy="60" r="52"/></svg><div class="score-val"><b class="mono" id="scoreVal">—</b><span>score</span></div></div>
     </div>
     <div class="components">
       <div class="comp"><div class="comp-label">Return <span class="muted">40%</span></div><div class="bar"><i id="barReturn"></i></div><div class="mono" id="valReturn">—</div></div>
@@ -182,29 +162,18 @@
     <div class="metrics mono" id="resMetrics"></div>
     <div class="res-grid">
       <div>
-        <div class="label">Detected patterns</div>
-        <div class="mistakes" id="mistakes"></div>
-        <div class="label" style="margin-top:14px">Calibration</div>
-        <div class="small" id="calibration">No thesis declared this session.</div>
-        <div class="label" style="margin-top:14px">Leaderboard</div>
-        <div class="board small" id="resBoard"></div>
+        <div class="label">Detected patterns</div><div class="mistakes" id="mistakes"></div>
+        <div class="label" style="margin-top:14px">Calibration</div><div class="small" id="calibration"></div>
+        <div class="label" style="margin-top:14px">Leaderboard</div><div class="board small" id="resBoard"></div>
       </div>
-      <div>
-        <div class="label">Coach <span class="muted" id="coachSrc"></span></div>
-        <div class="narrative" id="narrative"><div class="pending">Reconstructing your decisions from the event log…</div></div>
-      </div>
+      <div><div class="label">Coach <span class="muted" id="coachSrc"></span></div><div class="narrative" id="narrative"><div class="pending">Reconstructing your decisions from the event log…</div></div></div>
     </div>
-    <div class="actions">
-      <span class="muted small">Next round in <b class="mono" id="resLeft">—</b></span>
-      <a class="ghost" id="replayLink" href="#" download>Download replay log</a>
-      <button class="ghost" id="resClose">Back to the tape</button>
-    </div>
+    <div class="actions"><span class="muted small">Next round in <b class="mono" id="resLeft">—</b></span><a class="ghost" id="replayLink" href="#" download>Download replay log</a><button class="ghost" id="resClose">Back to the tape</button></div>
     <div class="fine">Real fills are worse at size, fees and taxes are real, markets gap overnight, and nothing here reproduces how it feels to lose money you need.</div>
   </div>
 </div>
 
 <div class="toasts" id="toasts"></div>
-
 <script src="lightweight-charts.js"></script>
 <script src="app.js"></script>
 </body>
