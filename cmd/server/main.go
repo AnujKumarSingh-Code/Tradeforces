@@ -55,5 +55,8 @@ func keyState() string {
 	if os.Getenv("ANTHROPIC_API_KEY") != "" {
 		return "set"
 	}
+	if os.Getenv("COACH") == "on" {
+		return "via proxy"
+	}
 	return "not set, local coach"
 }

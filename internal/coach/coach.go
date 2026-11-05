@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -61,16 +62,43 @@ type Coach struct {
 // New reads ANTHROPIC_API_KEY (and optional COACH_TAG_MODEL / COACH_MODEL).
 // The build plan budgets Haiku for tagging and Sonnet with caching for the
 // narrative; both are overridable.
+//
+// The coach is enabled when ANTHROPIC_API_KEY is set, or when COACH=on and
+// the key is injected by an outbound proxy (as a Claude Code cloud
+// environment "network secret" does): then requests go out without a key
+// header and the proxy adds it. COACH_BASE_URL overrides the API host; the
+// default is api.anthropic.com regardless of ANTHROPIC_BASE_URL, which in
+// some sandboxes points elsewhere.
 func New() *Coach {
 	c := &Coach{
 		tagModel: envOr("COACH_TAG_MODEL", "claude-haiku-5-5"),
 		narModel: envOr("COACH_MODEL", "claude-sonnet-5-5"),
 	}
-	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
-		cl := anthropic.NewClient(option.WithAPIKey(key), option.WithMaxRetries(2))
-		c.client = &cl
-		c.enabled = true
+	key := os.Getenv("ANTHROPIC_API_KEY")
+	viaProxy := strings.EqualFold(os.Getenv("COACH"), "on")
+	if key == "" && !viaProxy {
+		return c
 	}
+	opts := []option.RequestOption{
+		option.WithMaxRetries(2),
+		option.WithBaseURL(envOr("COACH_BASE_URL", "https://api.anthropic.com")),
+	}
+	if key != "" {
+		opts = append(opts, option.WithAPIKey(key))
+	} else {
+		// Placeholder so the SDK builds the request; the middleware removes
+		// the header again and the proxy injects the real key.
+		opts = append(opts,
+			option.WithAPIKey("injected-by-proxy"),
+			option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+				req.Header.Del("x-api-key")
+				return next(req)
+			}),
+		)
+	}
+	cl := anthropic.NewClient(opts...)
+	c.client = &cl
+	c.enabled = true
 	return c
 }
 

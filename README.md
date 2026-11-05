@@ -104,6 +104,10 @@ The coach is two calls per player per session (`internal/coach`):
 2. **Narrative** (`claude-sonnet-5-5`): the rubric and teaching style sit in a
    cached system prefix; the tags, metrics and episodes go in the user turn.
 
+If the key is injected by an outbound proxy instead (for example a Claude
+Code cloud environment network secret with header `x-api-key` for
+`api.anthropic.com`), set `COACH=on` so the coach sends requests without a
+key of its own. `COACH_BASE_URL` overrides the API host.
 Override models with `COACH_TAG_MODEL` and `COACH_MODEL`. To exercise the
 real calls without playing a round, `go run ./cmd/coachtest` runs a headless
 session with a scripted trader who commits most of the taxonomy, then prints
